@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
@@ -38,10 +39,20 @@ public class GameActivity extends AppCompatActivity {
     private String playerName;
     private Apple apple;
     private Snake snake;
+    private CanvasText scoreText;
+    private CanvasText playerText;
+    private CanvasText timeText;
+    private CanvasButton muteButton;
+    private int score = 0;
+    private long resumeTime = 0;
+    private long totalTime = 0;
 
     private Thread playThread = null;
     private volatile boolean playing = false;
     private volatile boolean muted = false;
+    private volatile boolean touched = false;
+    private float sTX;
+    private float sTY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,12 +70,14 @@ public class GameActivity extends AppCompatActivity {
 
     private void resume() {
         playing = true;
+        resumeTime = System.currentTimeMillis();
         playThread = new Thread(gameView);
         playThread.start();
     }
 
     private void end() {
         playing = false;
+        totalTime += (System.currentTimeMillis() - resumeTime);
     }
 
     private void openHighscores() {
@@ -75,21 +88,55 @@ public class GameActivity extends AppCompatActivity {
 
     private void mute() {
         muted = true;
+        muteButton.setIcon(getResources().getDrawable(R.drawable.unmute, null));
     }
 
     private void unmute() {
         muted = false;
+        muteButton.setIcon(getResources().getDrawable(R.drawable.mute, null));
+    }
+
+    private void toggleMuteState() {
+        if(muted) {
+            unmute();
+        }
+        else {
+            mute();
+        }
+    }
+
+    private String getDisplayTime() {
+        long time = totalTime;
+        if(playing) {
+            time += (System.currentTimeMillis() - resumeTime);
+        }
+
+        long h = time / (60 * 60 * 1000);   time -= h * 60 * 60 * 1000;
+        long m = time / (60 * 1000);        time -= m * 60 * 1000;
+        long s = time / 1000;
+
+        String H = (h > 0 ? h + ":" : "");
+        String M = (h > 0 && m < 10 ? "0" + m : m) + ":";
+        String S = (s < 10 ? "0" + s : String.valueOf(s));
+
+        return H + M + S;
     }
 
     private void update() {
-        snake.move();
+        if(!snake.move()) {
+            end();
+        }
 
         Block appleBlock = apple.getBlock();
         Block[] snakeBlocks = snake.getBlocks();
         if(snakeBlocks[0].getX() == appleBlock.getX() && snakeBlocks[0].getY() == appleBlock.getY()) {
             snake.eat();
+            score++;
             apple = new Apple(gameWidth, gameHeight, snakeBlocks);
         }
+
+        scoreText.setText(String.valueOf(score));
+        timeText.setText(getDisplayTime());
     }
 
     private void redraw() {
@@ -120,6 +167,49 @@ public class GameActivity extends AppCompatActivity {
                 // Spawn objects
                 snake = new Snake(gameWidth, gameHeight);
                 apple = new Apple(gameWidth, gameHeight, snake.getBlocks());
+
+                // Create texts
+                scoreText = new CanvasText(
+                    gameLeftMargin + blockMargin,
+                    gameTopMargin / 2,
+                    "0",
+                    Color.argb(255, 187, 187, 187),
+                    Paint.Align.LEFT,
+                    40
+                );
+                playerText = new CanvasText(
+                    screenWidth / 2,
+                    gameTopMargin / 2,
+                    playerName,
+                    Color.WHITE,
+                    Paint.Align.CENTER,
+                    40
+                );
+                timeText = new CanvasText(
+                    screenWidth - gameLeftMargin - blockMargin,
+                    gameTopMargin / 2,
+                    getDisplayTime(),
+                    Color.argb(255, 187, 187, 187),
+                    Paint.Align.RIGHT,
+                    40
+                );
+
+                // Create buttons
+                muteButton = new CanvasButton(
+                    screenWidth / 2 - gameBottomBarHeight / 4,
+                    screenHeight - gameBottomBarHeight + gameBottomBarHeight / 4 - blockMargin,
+                    gameBottomBarHeight / 2,
+                    gameBottomBarHeight / 2,
+                    getResources().getDrawable(R.drawable.mute, null),
+                    Color.argb(255, 68, 68, 68),
+                    blockMargin,
+                    new Callback() {
+                        @Override
+                        public void invoke() {
+                            toggleMuteState();
+                        }
+                    }
+                );
 
                 setWillNotDraw(false);
             }
@@ -173,6 +263,14 @@ public class GameActivity extends AppCompatActivity {
             paint.setColor(Color.BLACK);
             canvas.drawPaint(paint);
 
+            // Draw texts
+            scoreText.draw(canvas);
+            playerText.draw(canvas);
+            timeText.draw(canvas);
+
+            // Draw buttons
+            muteButton.draw(canvas);
+
             // Grid
             paint.setColor(Color.argb(255, 34, 34, 34));
             for(int i = 0; i < gameWidth; i++) {
@@ -198,6 +296,50 @@ public class GameActivity extends AppCompatActivity {
                 y = gameTopMargin + blockMargin + (blockSize + blockMargin) * snakeBlocks[i].getY();
                 canvas.drawRoundRect(x, y, x + blockSize, y + blockSize, blockMargin, blockMargin, paint);
             }
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            final float eTX = event.getX();
+            final float eTY = event.getY();
+
+            switch(event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    if(muteButton.isTouched(eTX, eTY)) { touched = muteButton.touchDown(); }
+                    else { touched = true; }
+
+                    if(touched) {
+                        sTX = eTX;
+                        sTY = eTY;
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                    if(muteButton.isTouched(sTX, sTY)) {
+                        if(muteButton.isTouched(eTX, eTY)) { touched = muteButton.touchUp(); }
+                        else { touched = muteButton.touchDownReset(); }
+                    }
+                    else {
+                        final float dTX = sTX - eTX;
+                        final float dTY = sTY - eTY;
+
+                        if(Math.abs(dTX) > Math.abs(dTY)) {
+                            if(dTX > 0) { snake.changeDirection(3); }
+                            else { snake.changeDirection(1); }
+                        }
+                        else if(Math.abs(dTX) < Math.abs(dTY)) {
+                            if(dTY > 0) { snake.changeDirection(0); }
+                            else { snake.changeDirection(2); }
+                        }
+                    }
+                    break;
+            }
+
+            if(touched) {
+                redraw();
+                return true;
+            }
+
+            return super.onTouchEvent(event);
         }
     }
 }

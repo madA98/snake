@@ -38,6 +38,12 @@ public class Snake {
         return blocks;
     }
 
+    public void changeDirection(int dir) {
+        if(this.dir % 2 != dir % 2) {
+            this.dir = dir;
+        }
+    }
+
     public boolean move() {
         prevTailBlock = new Block(blocks[blocks.length - 1].getX(), blocks[blocks.length - 1].getY());
 
