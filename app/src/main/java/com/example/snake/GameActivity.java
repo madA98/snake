@@ -1,18 +1,28 @@
 package com.example.snake;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
-public class GameActivity extends AppCompatActivity {
+public class GameActivity extends AppCompatActivity implements LocationListener {
     private SharedPreferences sp;
     private GameView gameView;
     private Canvas canvas;
@@ -54,6 +64,17 @@ public class GameActivity extends AppCompatActivity {
     private float sTX;
     private float sTY;
 
+    // Sounds
+    private SoundPool soundPool = new SoundPool(2, AudioManager.STREAM_MUSIC, 0);
+    private int dieSound;
+    private int dirSound;
+    private int eatSound;
+
+    // GPS
+    private LocationManager locationManager;
+    private double lat = 0;
+    private double lon = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -62,10 +83,29 @@ public class GameActivity extends AppCompatActivity {
         sp = getSharedPreferences("Game", Context.MODE_PRIVATE);
         playerName = sp.getString("playerName", null);
 
+        // Sounds
+        dieSound = soundPool.load(this, R.raw.die, 1);
+        dirSound = soundPool.load(this, R.raw.dir, 1);
+        eatSound = soundPool.load(this, R.raw.eat, 1);
+
         gameView = new GameView(this);
         setContentView(gameView);
 
         resume();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        updateLocation();
+        saveHighscore();
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        lat = location.getLatitude();
+        lon = location.getLongitude();
     }
 
     private void resume() {
@@ -78,6 +118,36 @@ public class GameActivity extends AppCompatActivity {
     private void end() {
         playing = false;
         totalTime += (System.currentTimeMillis() - resumeTime);
+
+        // Get GPS location
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        }
+        else {
+            updateLocation();
+            saveHighscore();
+        }
+    }
+
+    private void updateLocation() {
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            String bestProvider = locationManager.getBestProvider(new Criteria(), true);
+            if(bestProvider != null) {
+                locationManager.requestSingleUpdate(bestProvider, this, null);
+            }
+        }
+    }
+
+    private void saveHighscore() {
+        if(score > 0) {
+            // Save highscore
+
+            openHighscores();
+        }
+        else {
+            finish();
+        }
     }
 
     private void openHighscores() {
@@ -124,12 +194,14 @@ public class GameActivity extends AppCompatActivity {
 
     private void update() {
         if(!snake.move()) {
+            if(!muted) { soundPool.play(dieSound, 1.0f, 1.0f, 1, 0, 1.0f); }
             end();
         }
 
         Block appleBlock = apple.getBlock();
         Block[] snakeBlocks = snake.getBlocks();
         if(snakeBlocks[0].getX() == appleBlock.getX() && snakeBlocks[0].getY() == appleBlock.getY()) {
+            if(!muted) { soundPool.play(eatSound, 1.0f, 1.0f, 1, 0, 1.0f); }
             snake.eat();
             score++;
             apple = new Apple(gameWidth, gameHeight, snakeBlocks);
@@ -321,14 +393,19 @@ public class GameActivity extends AppCompatActivity {
                     else {
                         final float dTX = sTX - eTX;
                         final float dTY = sTY - eTY;
+                        boolean dirChanged = false;
 
                         if(Math.abs(dTX) > Math.abs(dTY)) {
-                            if(dTX > 0) { snake.changeDirection(3); }
-                            else { snake.changeDirection(1); }
+                            if(dTX > 0) { dirChanged = snake.changeDirection(3); }
+                            else { dirChanged = snake.changeDirection(1); }
                         }
                         else if(Math.abs(dTX) < Math.abs(dTY)) {
-                            if(dTY > 0) { snake.changeDirection(0); }
-                            else { snake.changeDirection(2); }
+                            if(dTY > 0) { dirChanged = snake.changeDirection(0); }
+                            else { dirChanged = snake.changeDirection(2); }
+                        }
+
+                        if(dirChanged) {
+                            if(!muted) { soundPool.play(dirSound, 1.0f, 1.0f, 1, 0, 1.0f); }
                         }
                     }
                     break;
