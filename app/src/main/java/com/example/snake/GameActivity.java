@@ -1,6 +1,7 @@
 package com.example.snake;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -15,9 +16,11 @@ import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Bundle;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.DisplayMetrics;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -117,6 +120,21 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
         lon = location.getLongitude();
     }
 
+    @Override
+    public void onProviderEnabled(@NonNull String provider) {
+        System.out.println("Enabled");
+    }
+
+    @Override
+    public void onProviderDisabled(@NonNull String provider) {
+        System.out.println("Disabled");
+    }
+
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+        System.out.println("Status changed");
+    }
+
     private void resume() {
         playing = true;
         resumeTime = System.currentTimeMillis();
@@ -125,6 +143,7 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
     }
 
     private void end() {
+        playThread.interrupt();
         playing = false;
         totalTime += (System.currentTimeMillis() - resumeTime);
 
@@ -144,6 +163,11 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
             String bestProvider = locationManager.getBestProvider(new Criteria(), true);
             if(bestProvider != null) {
                 locationManager.requestSingleUpdate(bestProvider, this, null);
+                Location location = locationManager.getLastKnownLocation(bestProvider);
+                if(location != null) {
+                    lat = location.getLatitude();
+                    lon = location.getLongitude();
+                }
             }
         }
     }
@@ -238,53 +262,51 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
         private GameView(Context context) {
             super(context);
             holder = getHolder();
-        }
 
-        @Override
-        public void onWindowFocusChanged(boolean hasWindowFocus) {
-            super.onWindowFocusChanged(hasWindowFocus);
-            if(hasWindowFocus) {
-                screenWidth = gameView.getMeasuredWidth();
-                screenHeight = gameView.getMeasuredHeight();
+            DisplayMetrics displayMetrics = new DisplayMetrics();
+            ((Activity) getContext()).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
 
-                // Calculate blockSize and gameHeight
-                blockSize = (screenWidth - blockMargin * (gameWidth + 1)) / gameWidth;
-                gameLeftMargin = (screenWidth - (gameWidth * (blockSize + blockMargin) + blockMargin)) / 2;
-                gameHeight = (screenHeight - gameTopBarHeight - gameBottomBarHeight - blockMargin) / (blockSize + blockMargin);
-                gameTopMargin = gameTopBarHeight + (screenHeight - gameTopBarHeight - gameBottomBarHeight - (gameHeight * (blockSize + blockMargin) + blockMargin)) / 2;
+            screenWidth = displayMetrics.widthPixels;
+            screenHeight = displayMetrics.heightPixels;
 
-                // Spawn objects
-                snake = new Snake(gameWidth, gameHeight);
-                apple = new Apple(gameWidth, gameHeight, snake.getBlocks());
+            // Calculate blockSize and gameHeight
+            blockSize = (screenWidth - blockMargin * (gameWidth + 1)) / gameWidth;
+            gameLeftMargin = (screenWidth - (gameWidth * (blockSize + blockMargin) + blockMargin)) / 2;
+            gameHeight = (screenHeight - gameTopBarHeight - gameBottomBarHeight - blockMargin) / (blockSize + blockMargin);
+            gameTopMargin = gameTopBarHeight + (screenHeight - gameTopBarHeight - gameBottomBarHeight - (gameHeight * (blockSize + blockMargin) + blockMargin)) / 2;
 
-                // Create texts
-                scoreText = new CanvasText(
+            // Spawn objects
+            snake = new Snake(gameWidth, gameHeight);
+            apple = new Apple(gameWidth, gameHeight, snake.getBlocks());
+
+            // Create texts
+            scoreText = new CanvasText(
                     gameLeftMargin + blockMargin,
                     gameTopMargin / 2,
                     "0",
                     Color.argb(255, 187, 187, 187),
                     Paint.Align.LEFT,
                     40
-                );
-                playerText = new CanvasText(
+            );
+            playerText = new CanvasText(
                     screenWidth / 2,
                     gameTopMargin / 2,
                     playerName,
                     Color.WHITE,
                     Paint.Align.CENTER,
                     40
-                );
-                timeText = new CanvasText(
+            );
+            timeText = new CanvasText(
                     screenWidth - gameLeftMargin - blockMargin,
                     gameTopMargin / 2,
                     getDisplayTime(),
                     Color.argb(255, 187, 187, 187),
                     Paint.Align.RIGHT,
                     40
-                );
+            );
 
-                // Create buttons
-                muteButton = new CanvasButton(
+            // Create buttons
+            muteButton = new CanvasButton(
                     screenWidth / 2 - gameBottomBarHeight / 4,
                     screenHeight - gameBottomBarHeight + gameBottomBarHeight / 4 - blockMargin,
                     gameBottomBarHeight / 2,
@@ -298,14 +320,15 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
                             toggleMuteState();
                         }
                     }
-                );
+            );
 
-                setWillNotDraw(false);
-            }
+            setWillNotDraw(false);
         }
 
         @Override
         public void run() {
+            Looper.prepare();
+
             while(playing) {
                 long currentFrameTime = System.currentTimeMillis();
                 long elapsedFrameTime = currentFrameTime - lastFrameTime;
