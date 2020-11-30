@@ -22,6 +22,10 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
 public class GameActivity extends AppCompatActivity implements LocationListener {
     private SharedPreferences sp;
     private GameView gameView;
@@ -47,6 +51,7 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
 
     // Game
     private String playerName;
+    private ArrayList<String> highscores = new ArrayList<String>();
     private Apple apple;
     private Snake snake;
     private CanvasText scoreText;
@@ -82,6 +87,10 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
         // Load
         sp = getSharedPreferences("Game", Context.MODE_PRIVATE);
         playerName = sp.getString("playerName", null);
+        Set<String> highscoresSet = sp.getStringSet("highscores", null);
+        if(highscoresSet != null) {
+            highscores.addAll(highscoresSet);
+        }
 
         // Sounds
         dieSound = soundPool.load(this, R.raw.die, 1);
@@ -141,7 +150,15 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
 
     private void saveHighscore() {
         if(score > 0) {
-            // Save highscore
+            String newHighscore = System.currentTimeMillis() + ";" + playerName + ";" + score + ";" + totalTime + ";" + lat + ";" + lon;
+
+            Set<String> highscoresSet = new HashSet<String>();
+            highscoresSet.addAll(highscores);
+            highscoresSet.add(newHighscore);
+
+            final SharedPreferences.Editor spEditor = sp.edit();
+            spEditor.putStringSet("highscores", highscoresSet);
+            spEditor.apply();
 
             openHighscores();
         }
