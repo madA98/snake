@@ -102,8 +102,20 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
 
         gameView = new GameView(this);
         setContentView(gameView);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
 
         resume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        pause();
     }
 
     @Override
@@ -142,10 +154,14 @@ public class GameActivity extends AppCompatActivity implements LocationListener 
         playThread.start();
     }
 
-    private void end() {
+    private void pause() {
         playThread.interrupt();
         playing = false;
         totalTime += (System.currentTimeMillis() - resumeTime);
+    }
+
+    private void end() {
+        pause();
 
         // Get GPS location
         if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
