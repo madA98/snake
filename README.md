@@ -7,9 +7,10 @@ The game has a few basic rules:
 - the snake does not die when it reaches the end of the screen but it appears on the other side
 
 Features:
-- the game uses canvas for rendering game scene
-- each attempt is saved on device when finished and player has access to it over highscores section
-- the snake is maneuvered by swiping across the screen
-- sound effects (may be disabled by the mute button)
-- the user interface is intuitive and easy to use
-- the gps location is saved for sentimental purposes as for example when the player wants to know where he/she was at the time he/she achieved that score
+- Canvas - used for rendering game scene
+- SharedPreferences - used for saving each attempt on device when finished and player has access to it over highscores section
+- Gesture - the snake is maneuvered by swipe gesture across the screen
+- Sound effects (may be disabled by the mute button)
+- GUI - the user interface is intuitive and easy to use, there are 3 activity windows - Main, Game & Highscores
+- GPS - used for sentimental purposes as for example when the player wants to know where he/she was at the time he/she achieved that score
+- Threads - used for smooth gameplay while looping over game cycles (5 game updates per second)
